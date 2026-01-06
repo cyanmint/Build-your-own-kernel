@@ -65,12 +65,12 @@ on:
         options:
           - Stable
           - Dev
-        default: Dev
+        default: Stable
       custom_version_suffix:
         description: '自定义内核内部版本后缀(uname -r), 留空则使用默认值'
         required: false
         type: string
-        default: 'zakozakoooooo-1145141919'
+        default: '-zakozakoooooo-1145141919'
       use_zram:
         description: '启用额外ZRAM算法'
         required: true
@@ -93,7 +93,7 @@ on:
         description: '手动启用特定内核配置项 (逗号分隔，如: CONFIG_PID_NS,CONFIG_USER_NS,CONFIG_IPC_NS)'
         required: false
         type: string
-        default: ''
+        default: 'CONFIG_PID_NS,CONFIG_USER_NS,CONFIG_IPC_NS'
 
 jobs:
   build_kernel:
