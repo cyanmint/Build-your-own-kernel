@@ -436,11 +436,6 @@ jobs:
           fi
           
           CUSTOM_CONFIGS="${{ github.event.inputs.custom_kernel_configs }}"
-          if [ -z "$CUSTOM_CONFIGS" ]; then
-            echo "No custom kernel configs provided, skipping."
-            exit 0
-          fi
-          
           echo "Processing custom kernel configs: $CUSTOM_CONFIGS"
           
           # Function to update or append config
@@ -455,7 +450,7 @@ jobs:
             cfg_name=$(echo "$cfg_name" | xargs)
             
             # Validate config name format
-            if [[ ! "$cfg_name" =~ ^CONFIG_[A-Z0-9_]+$ ]]; then
+            if [[ ! "$cfg_name" =~ ^CONFIG_[A-Za-z0-9_]+$ ]]; then
               echo "::warning::Invalid config name format: $cfg_name (skipping)"
               return
             fi
