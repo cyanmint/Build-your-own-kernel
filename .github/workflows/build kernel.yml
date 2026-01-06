@@ -57,7 +57,7 @@ on:
           - "android15_6.6_66_2025-02_"
           - "android15_6.6_77_2025-03_"
           - "android15_6.6_X_lts_"
-        default: "android14_6.1_75_2024-05_"
+        default: "android14_6.1_118_2025-01_"
       kernelsu_branch:
         description: "选择SukiSU功能分支"
         required: true
@@ -70,6 +70,7 @@ on:
         description: '自定义内核内部版本后缀(uname -r), 留空则使用默认值'
         required: false
         type: string
+        default: 'zakozakoooooo-1145141919'
       use_zram:
         description: '启用额外ZRAM算法'
         required: true
@@ -87,7 +88,7 @@ on:
         options:
           - 'true'
           - 'false'
-        default: 'true'
+        default: 'false'
 
 jobs:
   build_kernel:
