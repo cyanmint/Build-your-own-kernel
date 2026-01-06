@@ -471,7 +471,11 @@ jobs:
           echo "Processing custom kernel configs: $CUSTOM_CONFIGS"
           
           # Split by comma and process each config
+          # Save original IFS and restore after use to avoid affecting subsequent commands
+          OLD_IFS="$IFS"
           IFS=',' read -ra CONFIGS <<< "$CUSTOM_CONFIGS"
+          IFS="$OLD_IFS"
+          
           for config in "${CONFIGS[@]}"; do
             # Trim whitespace
             config=$(echo "$config" | xargs)
