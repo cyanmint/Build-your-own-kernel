@@ -57,7 +57,7 @@ on:
           - "android15_6.6_66_2025-02_"
           - "android15_6.6_77_2025-03_"
           - "android15_6.6_X_lts_"
-        default: "android14_6.1_75_2024-05_"
+        default: "android14_6.1_118_2025-01_"
       kernelsu_branch:
         description: "选择SukiSU功能分支"
         required: true
@@ -89,6 +89,7 @@ on:
         description: '手动启用额外内核配置 (逗号分隔, 例: CONFIG_PID_NS,CONFIG_USER_NS,CONFIG_IPC_NS)'
         required: false
         type: string
+        default: 'CONFIG_PID_NS,CONFIG_IPC_NS'
       upload_to_release:
         description: '是否上传到 GitHub Release'
         required: true
