@@ -80,6 +80,11 @@ on:
         required: true
         type: boolean
         default: false
+      use_susfs:
+        description: '启用SUSFS功能'
+        required: true
+        type: boolean
+        default: true
       upload_to_release:
         description: '是否上传到 GitHub Release'
         required: true
@@ -240,9 +245,11 @@ jobs:
         run: |
           set -euo pipefail
           ANYKERNEL_BRANCH="gki-2.0"
-          SUSFS_BRANCH="gki-${{ env.SELECTED_ANDROID_VERSION }}-${{ env.SELECTED_KERNEL_VERSION }}"
           git clone https://github.com/WildPlusKernel/AnyKernel3.git -b "$ANYKERNEL_BRANCH" AnyKernel3
-          git clone https://github.com/ShirkNeko/susfs4ksu.git -b "$SUSFS_BRANCH" susfs4ksu
+          if [[ "${{ github.event.inputs.use_susfs }}" == "true" ]]; then
+            SUSFS_BRANCH="gki-${{ env.SELECTED_ANDROID_VERSION }}-${{ env.SELECTED_KERNEL_VERSION }}"
+            git clone https://github.com/ShirkNeko/susfs4ksu.git -b "$SUSFS_BRANCH" susfs4ksu
+          fi
           git clone https://github.com/WildPlusKernel/kernel_patches.git kernel_patches
           git clone https://github.com/ShirkNeko/SukiSU_patch.git SukiSU_patch
       - name: 同步内核源码
@@ -321,6 +328,7 @@ jobs:
           echo "sukisu_version_string=${suki_version_actual}" >> $GITHUB_OUTPUT
           
       - name: 应用SUSFS补丁
+        if: ${{ github.event.inputs.use_susfs == 'true' }}
         working-directory: ${{ env.KERNEL_SRC_ROOT }}
         shell: bash
         run: |
@@ -405,13 +413,14 @@ jobs:
             update_cfg "CONFIG_CRYPTO_LZ4KD" "y"; update_cfg "CONFIG_CRYPTO_842" "y"; update_cfg "CONFIG_CRYPTO_LZ4K_OPLUS" "y"
           fi
           sort -u "$CONFIG_FILE_PATH" -o "$CONFIG_FILE_PATH"
-      - name: 配置SUSFS功能
+      - name: 配置KernelSU基础功能
         run: |
           set -euo pipefail
           GKI_PATH="${{ env.GKI_DEFCONFIG_PATH_ENV }}"; if [ ! -f "$GKI_PATH" ]; then exit 1; fi
           upd_cfg() { local k="$1"; local v="$2"; sed -i -e "/^${k}=/d" -e "/^# ${k} is not set/d" "$GKI_PATH"; echo "${k}=${v}" >> "$GKI_PATH"; }
-          cfgs_y=( "CONFIG_KSU" "CONFIG_KSU_MANUAL_HOOK" "CONFIG_TMPFS_XATTR" "CONFIG_TMPFS_POSIX_ACL" "CONFIG_IP_NF_TARGET_TTL" "CONFIG_IP6_NF_TARGET_HL" "CONFIG_IP6_NF_MATCH_HL" "CONFIG_TCP_CONG_ADVANCED" "CONFIG_TCP_CONG_BBR" "CONFIG_NET_SCH_FQ" "CONFIG_KSU_SUSFS" "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT" "CONFIG_KSU_SUSFS_SUS_PATH" "CONFIG_KSU_SUSFS_SUS_MOUNT" "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT" "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT" "CONFIG_KSU_SUSFS_SUS_KSTAT" "CONFIG_KSU_SUSFS_TRY_UMOUNT" "CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT" "CONFIG_KSU_SUSFS_SPOOF_UNAME" "CONFIG_KSU_SUSFS_ENABLE_LOG" "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS" "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG" "CONFIG_KSU_SUSFS_OPEN_REDIRECT" )
-          cfgs_n=( "CONFIG_KSU_SUSFS_SUS_SU" "CONFIG_KSU_SUSFS_SUS_OVERLAYFS" "CONFIG_TCP_CONG_BIC" "CONFIG_TCP_CONG_WESTWOOD" "CONFIG_TCP_CONG_HTCP" )
+          # KernelSU基础配置
+          cfgs_y=( "CONFIG_KSU" "CONFIG_KSU_MANUAL_HOOK" "CONFIG_TMPFS_XATTR" "CONFIG_TMPFS_POSIX_ACL" "CONFIG_IP_NF_TARGET_TTL" "CONFIG_IP6_NF_TARGET_HL" "CONFIG_IP6_NF_MATCH_HL" "CONFIG_TCP_CONG_ADVANCED" "CONFIG_TCP_CONG_BBR" "CONFIG_NET_SCH_FQ" )
+          cfgs_n=( "CONFIG_TCP_CONG_BIC" "CONFIG_TCP_CONG_WESTWOOD" "CONFIG_TCP_CONG_HTCP" )
           for ck in "${cfgs_y[@]}"; do upd_cfg "$ck" "y"; done
           for cn in "${cfgs_n[@]}"; do upd_cfg "$cn" "n"; done
           if [[ "${{ env.EFFECTIVE_USE_KPM }}" == "true" ]]; then upd_cfg "CONFIG_KPM" "y"; else upd_cfg "CONFIG_KPM" "n"; fi
@@ -419,6 +428,18 @@ jobs:
           for fp in "${{ env.KERNEL_SRC_ROOT }}/common/build.config.gki" "${{ env.KERNEL_SRC_ROOT }}/common/build.config.gki.aarch64" "${{ env.KERNEL_SRC_ROOT }}/common/build.config"; do
             if [ -f "$fp" ]; then sed -i 's/check_defconfig//g' "$fp"; fi
           done
+      - name: 配置SUSFS功能
+        if: ${{ github.event.inputs.use_susfs == 'true' }}
+        run: |
+          set -euo pipefail
+          GKI_PATH="${{ env.GKI_DEFCONFIG_PATH_ENV }}"; if [ ! -f "$GKI_PATH" ]; then exit 1; fi
+          upd_cfg() { local k="$1"; local v="$2"; sed -i -e "/^${k}=/d" -e "/^# ${k} is not set/d" "$GKI_PATH"; echo "${k}=${v}" >> "$GKI_PATH"; }
+          # SUSFS特定配置
+          cfgs_y=( "CONFIG_KSU_SUSFS" "CONFIG_KSU_SUSFS_HAS_MAGIC_MOUNT" "CONFIG_KSU_SUSFS_SUS_PATH" "CONFIG_KSU_SUSFS_SUS_MOUNT" "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_KSU_DEFAULT_MOUNT" "CONFIG_KSU_SUSFS_AUTO_ADD_SUS_BIND_MOUNT" "CONFIG_KSU_SUSFS_SUS_KSTAT" "CONFIG_KSU_SUSFS_TRY_UMOUNT" "CONFIG_KSU_SUSFS_AUTO_ADD_TRY_UMOUNT_FOR_BIND_MOUNT" "CONFIG_KSU_SUSFS_SPOOF_UNAME" "CONFIG_KSU_SUSFS_ENABLE_LOG" "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS" "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG" "CONFIG_KSU_SUSFS_OPEN_REDIRECT" )
+          cfgs_n=( "CONFIG_KSU_SUSFS_SUS_SU" "CONFIG_KSU_SUSFS_SUS_OVERLAYFS" )
+          for ck in "${cfgs_y[@]}"; do upd_cfg "$ck" "y"; done
+          for cn in "${cfgs_n[@]}"; do upd_cfg "$cn" "n"; done
+          sort -u "$GKI_PATH" -o "$GKI_PATH"
       - name: 生成版本后缀和日期
         id: generate_suffixes
         env:
@@ -497,7 +518,10 @@ jobs:
               else echo "::warning::${k}!=${ev}"; fi
             else echo "${k}=${ev} OK."; fi
           }
-          check_cfg "CONFIG_KSU" "y" "true"; check_cfg "CONFIG_KSU_SUSFS" "y" "false"; check_cfg "CONFIG_MODVERSIONS" "y" "false"
+          check_cfg "CONFIG_KSU" "y" "true"; check_cfg "CONFIG_MODVERSIONS" "y" "false"
+          if [[ "${{ github.event.inputs.use_susfs }}" == "true" ]]; then
+            check_cfg "CONFIG_KSU_SUSFS" "y" "false"
+          fi
           if [[ "${{ github.event.inputs.use_zram }}" == "true" ]]; then
             check_cfg "CONFIG_ZRAM" "y" "true"; check_cfg "CONFIG_CRYPTO_LZ4K" "y" "true"
           fi
@@ -696,6 +720,7 @@ jobs:
             **🛠️ 编译特性 🛠️**
             * ✅ **ZRAM:** `${{ github.event.inputs.use_zram }}`
             * ✅ **KPM:** `${{ needs.build_kernel.outputs.effective_kpm_setting }}`
+            * ✅ **SUSFS:** `${{ github.event.inputs.use_susfs }}`
 
             **🔗 追踪信息 🔗**
             * **SHA:** `${{ github.sha }}`
