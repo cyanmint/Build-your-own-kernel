@@ -89,7 +89,7 @@ on:
         description: '手动启用额外内核配置 (逗号分隔, 例: CONFIG_PID_NS,CONFIG_USER_NS,CONFIG_IPC_NS)'
         required: false
         type: string
-        default: 'CONFIG_PID_NS,CONFIG_IPC_NS'
+        default: 'CONFIG_SYSVIPC,CONFIG_USER_NS,CONFIG_PID_NS,CONFIG_IPC_NS'
       upload_to_release:
         description: '是否上传到 GitHub Release'
         required: true
