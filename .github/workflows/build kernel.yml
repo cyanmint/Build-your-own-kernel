@@ -332,7 +332,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "Applying SUSFS KernelSU patch..."
-          KSU_SUSFS_PATCH="../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch"
+          KSU_SUSFS_PATCH="${GITHUB_WORKSPACE}/susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch"
           if [ ! -f "$KSU_SUSFS_PATCH" ]; then
             echo "::error::SUSFS KernelSU patch not found at $KSU_SUSFS_PATCH"
             exit 1
