@@ -24,6 +24,7 @@
 - 支持构建kernelsu的分支 **SukiSU Ultra**
 - 支持 GitHub Actions 云端自动构建
 - 精简 defconfig，删除多余模块
+- 支持手动启用特定内核配置项（如 CONFIG_PID_NS、CONFIG_USER_NS 等）
 - 可通过 AnyKernel3 封装快速刷入
 
 ---
