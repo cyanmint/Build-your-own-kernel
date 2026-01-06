@@ -477,7 +477,9 @@ jobs:
           IFS=',' read -ra CONFIGS <<< "$CUSTOM_CONFIGS"
           IFS="$OLD_IFS"
           
-          # Track which namespace configs are requested
+          # Track kernel config dependencies that need to be enabled
+          # NEEDS_NAMESPACES: Set to true when namespace configs (PID_NS, IPC_NS, etc.) are requested
+          # NEEDS_SYSVIPC: Set to true when CONFIG_IPC_NS is requested (requires System V IPC support)
           NEEDS_NAMESPACES=false
           NEEDS_SYSVIPC=false
           
@@ -497,9 +499,12 @@ jobs:
             fi
             
             # Check if this config requires namespace support
-            if [[ "$config" == "CONFIG_PID_NS" || "$config" == "CONFIG_IPC_NS" || "$config" == "CONFIG_UTS_NS" || "$config" == "CONFIG_NET_NS" || "$config" == "CONFIG_USER_NS" ]]; then
-              NEEDS_NAMESPACES=true
-            fi
+            # Using case statement for better readability and maintainability
+            case "$config" in
+              CONFIG_PID_NS|CONFIG_IPC_NS|CONFIG_UTS_NS|CONFIG_NET_NS|CONFIG_USER_NS)
+                NEEDS_NAMESPACES=true
+                ;;
+            esac
             
             # CONFIG_IPC_NS additionally requires CONFIG_SYSVIPC
             if [[ "$config" == "CONFIG_IPC_NS" ]]; then
