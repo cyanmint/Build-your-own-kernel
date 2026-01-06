@@ -477,6 +477,10 @@ jobs:
           IFS=',' read -ra CONFIGS <<< "$CUSTOM_CONFIGS"
           IFS="$OLD_IFS"
           
+          # Track which namespace configs are requested
+          NEEDS_NAMESPACES=false
+          NEEDS_SYSVIPC=false
+          
           for config in "${CONFIGS[@]}"; do
             # Trim whitespace
             config=$(echo "$config" | xargs)
@@ -492,9 +496,30 @@ jobs:
               continue
             fi
             
+            # Check if this config requires namespace support
+            if [[ "$config" == "CONFIG_PID_NS" || "$config" == "CONFIG_IPC_NS" || "$config" == "CONFIG_UTS_NS" || "$config" == "CONFIG_NET_NS" || "$config" == "CONFIG_USER_NS" ]]; then
+              NEEDS_NAMESPACES=true
+            fi
+            
+            # CONFIG_IPC_NS additionally requires CONFIG_SYSVIPC
+            if [[ "$config" == "CONFIG_IPC_NS" ]]; then
+              NEEDS_SYSVIPC=true
+            fi
+            
             echo "Enabling config: $config"
             upd_cfg "$config" "y"
           done
+          
+          # Enable dependencies if needed
+          if [ "$NEEDS_NAMESPACES" = true ]; then
+            echo "Enabling CONFIG_NAMESPACES (required for namespace configs)"
+            upd_cfg "CONFIG_NAMESPACES" "y"
+          fi
+          
+          if [ "$NEEDS_SYSVIPC" = true ]; then
+            echo "Enabling CONFIG_SYSVIPC (required for CONFIG_IPC_NS)"
+            upd_cfg "CONFIG_SYSVIPC" "y"
+          fi
           
           # Sort and deduplicate the config file
           sort -u "$GKI_PATH" -o "$GKI_PATH"

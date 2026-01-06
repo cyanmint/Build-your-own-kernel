@@ -54,6 +54,7 @@ git clone https://github.com/Celestials316/Build-your-own-kernel.git
   - 该功能会自动在 defconfig 中搜索并启用指定配置
   - 如果配置项已存在但被禁用，会自动改为启用
   - 如果配置项不存在，会自动添加
+  - **自动依赖解析**：启用 namespace 相关配置（如 CONFIG_PID_NS、CONFIG_IPC_NS 等）时，会自动启用必需的依赖项（CONFIG_NAMESPACES、CONFIG_SYSVIPC）
 
 #### 2.3 等待编译完成
 工作流会自动编译内核并打包为 AnyKernel3 格式的刷机包。
