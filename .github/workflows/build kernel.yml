@@ -89,6 +89,11 @@ on:
           - 'true'
           - 'false'
         default: 'false'
+      custom_kernel_configs:
+        description: '手动启用特定内核配置项 (逗号分隔，如: CONFIG_PID_NS,CONFIG_USER_NS,CONFIG_IPC_NS)'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   build_kernel:
@@ -420,6 +425,62 @@ jobs:
           for fp in "${{ env.KERNEL_SRC_ROOT }}/common/build.config.gki" "${{ env.KERNEL_SRC_ROOT }}/common/build.config.gki.aarch64" "${{ env.KERNEL_SRC_ROOT }}/common/build.config"; do
             if [ -f "$fp" ]; then sed -i 's/check_defconfig//g' "$fp"; fi
           done
+      - name: 配置自定义内核选项
+        if: ${{ github.event.inputs.custom_kernel_configs != '' }}
+        run: |
+          set -euo pipefail
+          GKI_PATH="${{ env.GKI_DEFCONFIG_PATH_ENV }}"
+          if [ ! -f "$GKI_PATH" ]; then
+            echo "::error::GKI defconfig file not found at $GKI_PATH"
+            exit 1
+          fi
+          
+          CUSTOM_CONFIGS="${{ github.event.inputs.custom_kernel_configs }}"
+          if [ -z "$CUSTOM_CONFIGS" ]; then
+            echo "No custom kernel configs provided, skipping."
+            exit 0
+          fi
+          
+          echo "Processing custom kernel configs: $CUSTOM_CONFIGS"
+          
+          # Function to update or append config
+          update_custom_cfg() {
+            local cfg_name="$1"
+            local cfg_value="y"
+            
+            # Remove any "=y" or "=n" suffix if user included it
+            cfg_name=$(echo "$cfg_name" | sed 's/=.*$//')
+            
+            # Trim whitespace
+            cfg_name=$(echo "$cfg_name" | xargs)
+            
+            # Validate config name format
+            if [[ ! "$cfg_name" =~ ^CONFIG_[A-Z0-9_]+$ ]]; then
+              echo "::warning::Invalid config name format: $cfg_name (skipping)"
+              return
+            fi
+            
+            echo "Processing: $cfg_name"
+            
+            # Remove any existing settings (both "CONFIG_XXX=y/n" and "# CONFIG_XXX is not set")
+            sed -i -e "/^${cfg_name}=/d" -e "/^# ${cfg_name} is not set/d" "$GKI_PATH"
+            
+            # Append the config with =y
+            echo "${cfg_name}=${cfg_value}" >> "$GKI_PATH"
+            
+            echo "  ✓ ${cfg_name} set to ${cfg_value}"
+          }
+          
+          # Split the comma-separated list and process each config
+          IFS=',' read -ra CONFIG_ARRAY <<< "$CUSTOM_CONFIGS"
+          for cfg in "${CONFIG_ARRAY[@]}"; do
+            update_custom_cfg "$cfg"
+          done
+          
+          # Sort and remove duplicates
+          sort -u "$GKI_PATH" -o "$GKI_PATH"
+          
+          echo "Custom kernel configs applied successfully!"
       - name: 生成版本后缀和日期
         id: generate_suffixes
         env:
