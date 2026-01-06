@@ -477,6 +477,12 @@ jobs:
           IFS=',' read -ra CONFIGS <<< "$CUSTOM_CONFIGS"
           IFS="$OLD_IFS"
           
+          # Track kernel config dependencies that need to be enabled
+          # NEEDS_NAMESPACES: Set to true when namespace configs (PID_NS, IPC_NS, etc.) are requested
+          # NEEDS_SYSVIPC: Set to true when CONFIG_IPC_NS is requested (requires System V IPC support)
+          NEEDS_NAMESPACES=false
+          NEEDS_SYSVIPC=false
+          
           for config in "${CONFIGS[@]}"; do
             # Trim whitespace
             config=$(echo "$config" | xargs)
@@ -492,9 +498,33 @@ jobs:
               continue
             fi
             
+            # Check if this config requires namespace support
+            # Using case statement for better readability and maintainability
+            case "$config" in
+              CONFIG_PID_NS|CONFIG_IPC_NS|CONFIG_UTS_NS|CONFIG_NET_NS|CONFIG_USER_NS)
+                NEEDS_NAMESPACES=true
+                ;;
+            esac
+            
+            # CONFIG_IPC_NS additionally requires CONFIG_SYSVIPC
+            if [[ "$config" == "CONFIG_IPC_NS" ]]; then
+              NEEDS_SYSVIPC=true
+            fi
+            
             echo "Enabling config: $config"
             upd_cfg "$config" "y"
           done
+          
+          # Enable dependencies if needed
+          if [ "$NEEDS_NAMESPACES" = true ]; then
+            echo "Enabling CONFIG_NAMESPACES (required for namespace configs)"
+            upd_cfg "CONFIG_NAMESPACES" "y"
+          fi
+          
+          if [ "$NEEDS_SYSVIPC" = true ]; then
+            echo "Enabling CONFIG_SYSVIPC (required for CONFIG_IPC_NS)"
+            upd_cfg "CONFIG_SYSVIPC" "y"
+          fi
           
           # Sort and deduplicate the config file
           sort -u "$GKI_PATH" -o "$GKI_PATH"
