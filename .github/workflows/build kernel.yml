@@ -326,6 +326,26 @@ jobs:
           echo "Detected SukiSU version: ${suki_version_actual}"
           echo "sukisu_version_string=${suki_version_actual}" >> $GITHUB_OUTPUT
           
+      - name: 应用SUSFS KernelSU补丁
+        working-directory: ${{ env.KERNEL_SRC_ROOT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Applying SUSFS KernelSU patch..."
+          KSU_SUSFS_PATCH="../susfs4ksu/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch"
+          if [ ! -f "$KSU_SUSFS_PATCH" ]; then
+            echo "::error::SUSFS KernelSU patch not found at $KSU_SUSFS_PATCH"
+            exit 1
+          fi
+          if [ ! -d "KernelSU" ]; then
+            echo "::error::KernelSU directory not found"
+            exit 1
+          fi
+          cd KernelSU
+          patch -p1 --fuzz=3 < "$KSU_SUSFS_PATCH" || { echo "::error::SUSFS KernelSU patch failed."; exit 1; }
+          echo "SUSFS KernelSU patch applied successfully"
+          cd - >/dev/null
+          
       - name: 应用SUSFS补丁
         working-directory: ${{ env.KERNEL_SRC_ROOT }}
         shell: bash
