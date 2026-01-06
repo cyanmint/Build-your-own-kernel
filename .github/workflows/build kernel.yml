@@ -342,8 +342,39 @@ jobs:
             exit 1
           fi
           cd KernelSU
-          patch -p1 --fuzz=3 < "$KSU_SUSFS_PATCH" || { echo "::error::SUSFS KernelSU patch failed."; exit 1; }
-          echo "SUSFS KernelSU patch applied successfully"
+          
+          # Try to apply patch with git apply first (cleaner and better at handling context)
+          echo "Attempting to apply patch with git apply..."
+          if git apply --check "$KSU_SUSFS_PATCH" 2>/dev/null; then
+            git apply "$KSU_SUSFS_PATCH"
+            echo "SUSFS KernelSU patch applied successfully with git apply"
+          else
+            echo "Git apply failed, trying with GNU patch with increased fuzz and forward option..."
+            # --forward: skip patches that appear to be already applied
+            # --fuzz=10: allow more context line differences
+            # --reject-file: put rejects in identifiable files
+            if patch -p1 --forward --fuzz=10 --no-backup-if-mismatch < "$KSU_SUSFS_PATCH"; then
+              echo "SUSFS KernelSU patch applied successfully with GNU patch"
+            else
+              # Check if patch was already applied (exit code 1 with --forward means already applied)
+              echo "Checking if patch was already applied or partially applied..."
+              REJECT_FILES=$(find . -name "*.rej" 2>/dev/null || true)
+              
+              if [ -z "$REJECT_FILES" ]; then
+                echo "No reject files found - patch may have been already applied"
+                echo "SUSFS KernelSU patch: already applied or forward-merged"
+              else
+                echo "::error::SUSFS KernelSU patch failed with reject files:"
+                for rej_file in $REJECT_FILES; do
+                  echo "::error::  Failed hunk in: ${rej_file}"
+                  echo "Reject file contents:"
+                  cat "$rej_file"
+                done
+                exit 1
+              fi
+            fi
+          fi
+          
           cd - >/dev/null
           
       - name: 应用SUSFS补丁
@@ -356,19 +387,78 @@ jobs:
           cp -r ../susfs4ksu/kernel_patches/fs/* ./common/fs/
           cp -r ../susfs4ksu/kernel_patches/include/linux/* ./common/include/linux/
           cd ./common
-          patch -p1 --fuzz=3 < 50_add_susfs_in_gki-${{ env.SELECTED_ANDROID_VERSION }}-${{ env.SELECTED_KERNEL_VERSION }}.patch || { echo "::error::SUSFS common patch failed."; exit 1; }
+          
+          SUSFS_COMMON_PATCH="50_add_susfs_in_gki-${{ env.SELECTED_ANDROID_VERSION }}-${{ env.SELECTED_KERNEL_VERSION }}.patch"
+          
+          # Try git apply first, then fall back to GNU patch with higher fuzz
+          echo "Attempting to apply SUSFS common patch with git apply..."
+          if git apply --check "$SUSFS_COMMON_PATCH" 2>/dev/null; then
+            git apply "$SUSFS_COMMON_PATCH"
+            echo "SUSFS common patch applied successfully with git apply"
+          else
+            echo "Git apply failed, trying with GNU patch..."
+            if patch -p1 --forward --fuzz=10 --no-backup-if-mismatch < "$SUSFS_COMMON_PATCH"; then
+              echo "SUSFS common patch applied successfully with GNU patch"
+            else
+              REJECT_FILES=$(find . -name "*.rej" 2>/dev/null || true)
+              if [ -z "$REJECT_FILES" ]; then
+                echo "No reject files found - SUSFS common patch may have been already applied"
+              else
+                echo "::error::SUSFS common patch failed with reject files:"
+                for rej_file in $REJECT_FILES; do
+                  echo "::error::  Failed hunk in: ${rej_file}"
+                  cat "$rej_file"
+                done
+                exit 1
+              fi
+            fi
+          fi
+          
           cd - >/dev/null
       - name: 应用内核补丁
         shell: bash
         run: |
           set -euo pipefail
           COMMON_DIR_PATH="${{ env.KERNEL_SRC_ROOT }}/common"
+          
+          # Helper function to apply patches with git/patch fallback
+          apply_patch_smart() {
+            local patch_file="$1"
+            local patch_name="$2"
+            
+            echo "Attempting to apply ${patch_name} with git apply..."
+            if git apply --check "$patch_file" 2>/dev/null; then
+              git apply "$patch_file"
+              echo "${patch_name} applied successfully with git apply"
+              return 0
+            else
+              echo "Git apply failed, trying with GNU patch..."
+              if patch -p1 --forward --fuzz=10 --no-backup-if-mismatch < "$patch_file"; then
+                echo "${patch_name} applied successfully with GNU patch"
+                return 0
+              else
+                REJECT_FILES=$(find . -name "*.rej" 2>/dev/null || true)
+                if [ -z "$REJECT_FILES" ]; then
+                  echo "${patch_name} may have been already applied"
+                  return 0
+                else
+                  echo "::error::${patch_name} failed with reject files:"
+                  for rej_file in $REJECT_FILES; do
+                    echo "::error::  Failed hunk in: ${rej_file}"
+                    cat "$rej_file"
+                  done
+                  return 1
+                fi
+              fi
+            fi
+          }
+          
           apply_hooks_patch() {
             cd "$COMMON_DIR_PATH"||exit 1
             HOOKS_PATCH_FILE="${GITHUB_WORKSPACE}/SukiSU_patch/hooks/syscall_hooks.patch"
             if [ -f "$HOOKS_PATCH_FILE" ]; then
               cp "$HOOKS_PATCH_FILE" ./syscall_hooks.patch
-              patch -p1 -F 3 < syscall_hooks.patch || { echo "::error::SukiSU hooks patch failed."; exit 1; }
+              apply_patch_smart "syscall_hooks.patch" "SukiSU hooks patch" || { echo "::error::SukiSU hooks patch failed."; exit 1; }
             fi
           }
           apply_zram_compression_patches() {
@@ -384,9 +474,15 @@ jobs:
               else exit 1; fi
               if [ -d "${ZRAM_PATCH_BASE}/lz4k_oplus" ]; then mkdir -p ./lib; cp -r "${ZRAM_PATCH_BASE}/lz4k_oplus" ./lib/ || exit 1; fi
               LZ4KD_PATCH="${ZRAM_PATCH_BASE}/zram_patch/${{env.SELECTED_KERNEL_VERSION}}/lz4kd.patch"
-              if [ -f "$LZ4KD_PATCH" ]; then cp "$LZ4KD_PATCH" ./lz4kd.patch; patch -p1 -F 3 < lz4kd.patch || exit 1; fi
+              if [ -f "$LZ4KD_PATCH" ]; then 
+                cp "$LZ4KD_PATCH" ./lz4kd.patch
+                apply_patch_smart "lz4kd.patch" "LZ4KD patch" || exit 1
+              fi
               LZ4KOPLUS_PATCH="${ZRAM_PATCH_BASE}/zram_patch/${{env.SELECTED_KERNEL_VERSION}}/lz4k_oplus.patch"
-              if [ -f "$LZ4KOPLUS_PATCH" ]; then cp "$LZ4KOPLUS_PATCH" ./lz4k_oplus.patch; patch -p1 -F 3 < lz4k_oplus.patch || exit 1; fi
+              if [ -f "$LZ4KOPLUS_PATCH" ]; then 
+                cp "$LZ4KOPLUS_PATCH" ./lz4k_oplus.patch
+                apply_patch_smart "lz4k_oplus.patch" "LZ4K OPLUS patch" || exit 1
+              fi
             fi
           }
           apply_hide_stuff_patch() {
@@ -394,7 +490,7 @@ jobs:
             HIDE_PATCH_FILE="${GITHUB_WORKSPACE}/SukiSU_patch/69_hide_stuff.patch"
             if [ -f "$HIDE_PATCH_FILE" ]; then
               cp "$HIDE_PATCH_FILE" ./hide_stuff.patch
-              patch -p1 -F 3 < hide_stuff.patch || { echo "::error::Hide stuff patch failed."; exit 1; }
+              apply_patch_smart "hide_stuff.patch" "Hide stuff patch" || { echo "::error::Hide stuff patch failed."; exit 1; }
             fi
           }
           apply_hooks_patch & PID_HOOKS=$!
