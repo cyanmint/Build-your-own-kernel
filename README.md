@@ -22,6 +22,7 @@
 ## ⚙️ 特性一览
 
 - 支持构建kernelsu的分支 **SukiSU Ultra**
+- 可选启用 **SUSFS** (susfs4ksu) 功能增强隐藏能力
 - 支持 GitHub Actions 云端自动构建
 - 精简 defconfig，删除多余模块
 - 可通过 AnyKernel3 封装快速刷入
@@ -43,5 +44,6 @@ git clone https://github.com/Celestials316/Build-your-own-kernel.git
 
 - [KernelSU](https://github.com/tiann/KernelSU)
 - [SukiSU-Ultra](https://github.com/ShirkNeko/SukiSU-Ultra)
+- [susfs4ksu](https://github.com/ShirkNeko/susfs4ksu)
 - 各位热心提供内核适配经验的大佬们！
 - GitHub Actions 社区编译脚本模板贡献者
