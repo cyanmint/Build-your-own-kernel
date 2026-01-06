@@ -454,7 +454,9 @@ jobs:
             exit 1
           fi
           
-          # Function to update kernel config
+          # Function to update kernel config (defined locally for this step)
+          # Note: This duplicates the function from other steps, but each workflow step
+          # is independent and doesn't share shell context with other steps
           upd_cfg() {
             local k="$1"
             local v="$2"
@@ -479,8 +481,8 @@ jobs:
               continue
             fi
             
-            # Validate config name format
-            if [[ ! "$config" =~ ^CONFIG_[A-Z0-9_]+$ ]]; then
+            # Validate config name format (allows uppercase, lowercase, numbers, underscores)
+            if [[ ! "$config" =~ ^CONFIG_[A-Za-z0-9_]+$ ]]; then
               echo "::warning::Invalid config format: $config (skipping)"
               continue
             fi
