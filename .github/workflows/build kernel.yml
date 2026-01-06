@@ -352,20 +352,21 @@ jobs:
             echo "Git apply failed, trying with GNU patch with increased fuzz and forward option..."
             # --forward: skip patches that appear to be already applied
             # --fuzz=10: allow more context line differences
-            # --reject-file: put rejects in identifiable files
             if patch -p1 --forward --fuzz=10 --no-backup-if-mismatch < "$KSU_SUSFS_PATCH"; then
               echo "SUSFS KernelSU patch applied successfully with GNU patch"
             else
               # Check if patch was already applied (exit code 1 with --forward means already applied)
               echo "Checking if patch was already applied or partially applied..."
-              REJECT_FILES=$(find . -name "*.rej" 2>/dev/null || true)
               
-              if [ -z "$REJECT_FILES" ]; then
+              # Use array to properly handle filenames with spaces
+              mapfile -t REJECT_FILES < <(find . -name "*.rej" 2>/dev/null || true)
+              
+              if [ ${#REJECT_FILES[@]} -eq 0 ]; then
                 echo "No reject files found - patch may have been already applied"
                 echo "SUSFS KernelSU patch: already applied or forward-merged"
               else
                 echo "::error::SUSFS KernelSU patch failed with reject files:"
-                for rej_file in $REJECT_FILES; do
+                for rej_file in "${REJECT_FILES[@]}"; do
                   echo "::error::  Failed hunk in: ${rej_file}"
                   echo "Reject file contents:"
                   cat "$rej_file"
@@ -400,12 +401,13 @@ jobs:
             if patch -p1 --forward --fuzz=10 --no-backup-if-mismatch < "$SUSFS_COMMON_PATCH"; then
               echo "SUSFS common patch applied successfully with GNU patch"
             else
-              REJECT_FILES=$(find . -name "*.rej" 2>/dev/null || true)
-              if [ -z "$REJECT_FILES" ]; then
+              # Use array to properly handle filenames with spaces
+              mapfile -t REJECT_FILES < <(find . -name "*.rej" 2>/dev/null || true)
+              if [ ${#REJECT_FILES[@]} -eq 0 ]; then
                 echo "No reject files found - SUSFS common patch may have been already applied"
               else
                 echo "::error::SUSFS common patch failed with reject files:"
-                for rej_file in $REJECT_FILES; do
+                for rej_file in "${REJECT_FILES[@]}"; do
                   echo "::error::  Failed hunk in: ${rej_file}"
                   cat "$rej_file"
                 done
@@ -437,13 +439,18 @@ jobs:
                 echo "${patch_name} applied successfully with GNU patch"
                 return 0
               else
-                REJECT_FILES=$(find . -name "*.rej" 2>/dev/null || true)
-                if [ -z "$REJECT_FILES" ]; then
+                # Use array to properly handle filenames with spaces
+                local reject_files=()
+                while IFS= read -r -d '' file; do
+                  reject_files+=("$file")
+                done < <(find . -name "*.rej" -print0 2>/dev/null || true)
+                
+                if [ ${#reject_files[@]} -eq 0 ]; then
                   echo "${patch_name} may have been already applied"
                   return 0
                 else
                   echo "::error::${patch_name} failed with reject files:"
-                  for rej_file in $REJECT_FILES; do
+                  for rej_file in "${reject_files[@]}"; do
                     echo "::error::  Failed hunk in: ${rej_file}"
                     cat "$rej_file"
                   done
